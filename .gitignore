@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Swift
+.build/
+/Packages/
+/*.xcodeproj
+xcuserdata/
+
+# Python
+__pycache__/
+*.pyc
