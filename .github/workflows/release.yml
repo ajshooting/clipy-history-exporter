@@ -11,7 +11,12 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v3
+              uses: actions/checkout@v4
+
+            - name: Select latest stable Xcode
+              uses: maxim-lobanov/setup-xcode@v1
+              with:
+                  xcode-version: '15.4'
 
             - name: Build Swift helper
               run: swift build -c release --package-path ./swift_helper/src
@@ -30,6 +35,6 @@ jobs:
                   zip -r clipy-history-exporter-${{ github.ref_name }}.zip release_package
 
             - name: Create Release and Upload Asset
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@v2
               with:
                   files: clipy-history-exporter-${{ github.ref_name }}.zip
