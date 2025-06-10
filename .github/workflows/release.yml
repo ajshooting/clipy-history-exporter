@@ -1,0 +1,35 @@
+name: Create Release and Upload Asset
+
+on:
+    push:
+        tags:
+            - 'v*'
+
+jobs:
+    build_and_release:
+        runs-on: macos-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Build Swift helper
+              run: swift build -c release --package-path ./swift_helper/src
+
+            - name: Prepare assets for release
+              run: |
+                  mkdir release_package
+
+                  cp export_clips.py release_package/
+                  cp LICENSE release_package/
+                  cp README.md release_package/
+
+                  mkdir -p release_package/swift_helper/bin
+                  cp ./swift_helper/src/.build/release/RealmExporter release_package/swift_helper/bin/RealmExporter
+
+                  zip -r clipy-history-exporter-${{ github.ref_name }}.zip release_package
+
+            - name: Create Release and Upload Asset
+              uses: softprops/action-gh-release@v1
+              with:
+                  files: clipy-history-exporter-${{ github.ref_name }}.zip
