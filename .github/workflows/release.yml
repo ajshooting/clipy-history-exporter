@@ -35,6 +35,6 @@ jobs:
                   zip -r clipy-history-exporter-${{ github.ref_name }}.zip release_package
 
             - name: Create Release and Upload Asset
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v2.3.0
               with:
                   files: clipy-history-exporter-${{ github.ref_name }}.zip
