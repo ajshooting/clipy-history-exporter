@@ -18,21 +18,34 @@ jobs:
               with:
                   xcode-version: '16.2'
 
-            - name: Build Swift helper
-              run: swift build -c release --package-path ./swift_helper/src
+            - name: Build Swift helper for Universal Binary
+              run: |
+                  # Intel (x86_64)向けにビルド
+                  swift build -c release --arch x86_64 --package-path ./swift_helper/src
+
+                  # Apple Silicon (arm64)向けにビルド
+                  swift build -c release --arch arm64 --package-path ./swift_helper/src
+                  
+                  # 両方のバイナリをlipoコマンドで1つに結合
+                  mkdir -p ./swift_helper/bin
+                  lipo -create \
+                    ./swift_helper/src/.build/x86_64-apple-macosx/release/RealmExporter \
+                    ./swift_helper/src/.build/arm64-apple-macosx/release/RealmExporter \
+                    -output ./swift_helper/bin/RealmExporter
 
             - name: Prepare assets for release
               run: |
-                  mkdir release_package
+                  mkdir clipy-history-exporter
 
-                  cp export_clips.py release_package/
-                  cp LICENSE release_package/
-                  cp README.md release_package/
+                  cp export_clips.py clipy-history-exporter/
+                  cp LICENSE clipy-history-exporter/
+                  cp README.md clipy-history-exporter/
 
-                  mkdir -p release_package/swift_helper/bin
-                  cp ./swift_helper/src/.build/release/RealmExporter release_package/swift_helper/bin/RealmExporter
+                  # 作成したユニバーサルバイナリをコピー
+                  mkdir -p clipy-history-exporter/swift_helper/bin
+                  cp ./swift_helper/bin/RealmExporter clipy-history-exporter/swift_helper/bin/RealmExporter
 
-                  zip -r clipy-history-exporter-${{ github.ref_name }}.zip release_package
+                  zip -r clipy-history-exporter-${{ github.ref_name }}.zip clipy-history-exporter
 
             - name: Create Release using GitHub CLI
               env:
