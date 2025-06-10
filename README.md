@@ -10,19 +10,23 @@ A tool to export all clipboard history saved in [Clipy](https://github.com/Clipy
 
 ## Usage
 
-1. Install dependencies:
+1. Download the latest release:
+
+Visit the [Releases page](https://github.com/ajshooting/clipy-history-exporter/releases/latest) and download and unzip it.
+
+2. Install dependencies:
 
 ```bash
 pip3 install nska-deserialize
 ```
 
-2. Grant execution permission:
+3. Grant execution permission:
 
 ```bash
 chmod +x ./swift_helper/bin/RealmExporter
 ```
 
-3. Run the script:
+4. Run the script:
 
 ```bash
 python3 export_clips.py
