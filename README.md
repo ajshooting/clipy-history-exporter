@@ -1,6 +1,6 @@
 # Clipy History Exporter
 
-A tool to export all clipboard history saved in Clipy, including images, into a single JSON file.
+A tool to export all clipboard history saved in [Clipy](https://github.com/Clipy/Clipy), including images, into a single JSON file.
 
 ## Features
 
