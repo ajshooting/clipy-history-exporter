@@ -1,0 +1,58 @@
+name: Update bundled RealmExporter
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - main
+        paths:
+            - 'swift_helper/src/**'
+            - '.github/workflows/update-realm-exporter.yml'
+
+permissions:
+    contents: write
+
+concurrency:
+    group: update-realm-exporter-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    update:
+        if: github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+        runs-on: macos-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Select latest stable Xcode
+              uses: maxim-lobanov/setup-xcode@v1
+              with:
+                  xcode-version: '16.2'
+
+            - name: Build universal RealmExporter
+              run: |
+                  swift build -c release --arch x86_64 --package-path ./swift_helper/src
+                  swift build -c release --arch arm64 --package-path ./swift_helper/src
+
+                  mkdir -p ./swift_helper/bin
+                  lipo -create \
+                    ./swift_helper/src/.build/x86_64-apple-macosx/release/RealmExporter \
+                    ./swift_helper/src/.build/arm64-apple-macosx/release/RealmExporter \
+                    -output ./swift_helper/bin/RealmExporter
+
+                  lipo -verify_arch x86_64 arm64 ./swift_helper/bin/RealmExporter
+                  lipo -info ./swift_helper/bin/RealmExporter
+
+            - name: Commit updated binary
+              run: |
+                  if [ -z "$(git status --porcelain swift_helper/bin/RealmExporter swift_helper/src/Package.resolved)" ]; then
+                    echo "RealmExporter is already up to date."
+                    exit 0
+                  fi
+
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git add swift_helper/bin/RealmExporter swift_helper/src/Package.resolved
+                  git commit -m "Update bundled RealmExporter binary"
+                  git push

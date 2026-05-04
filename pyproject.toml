@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "clipy-history-exporter"
+version = "0.1.0"
+description = "Export Clipy clipboard history, including images, to JSON."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "ajshooting" },
+]
+dependencies = [
+    "nska-deserialize",
+]
+keywords = ["clipy", "clipboard", "export", "macos"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: MacOS X",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+clipy-history-exporter = "export_clips:main"
+
+[project.urls]
+Homepage = "https://github.com/ajshooting/clipy-history-exporter"
+Repository = "https://github.com/ajshooting/clipy-history-exporter"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/clipy_history_exporter",
+    "/export_clips.py",
+    "/swift_helper/bin/RealmExporter",
+    "/swift_helper/src",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "clipy_history_exporter",
+    "export_clips.py",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"swift_helper/bin/RealmExporter" = "clipy_history_exporter/bin/RealmExporter"

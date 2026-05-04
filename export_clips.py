@@ -3,13 +3,49 @@ import base64
 import json
 import time
 import os
+import stat
+from contextlib import contextmanager
+from importlib.resources import as_file, files
 from nska_deserialize import deserialize_plist
 from pathlib import Path
 
 
-REALM_EXPORTER_PATH = "./swift_helper/bin/RealmExporter"
+PACKAGE_NAME = "clipy_history_exporter"
+REALM_EXPORTER_RELATIVE_PATH = Path("swift_helper/bin/RealmExporter")
 OUTPUT_FILE = Path("./ClipyExport.json")
 CLIPY_DATA_DIR = Path.home() / "Library/Application Support/com.clipy-app.Clipy"
+
+
+def ensure_executable(path):
+    if os.access(path, os.X_OK):
+        return path
+
+    try:
+        path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    except OSError as e:
+        raise PermissionError(f"RealmExporter is not executable: {path}") from e
+
+    return path
+
+
+@contextmanager
+def realm_exporter_path():
+    try:
+        packaged_exporter = files(PACKAGE_NAME).joinpath("bin", "RealmExporter")
+        if packaged_exporter.is_file():
+            with as_file(packaged_exporter) as path:
+                yield ensure_executable(path)
+            return
+    except ModuleNotFoundError:
+        pass
+
+    source_tree_exporter = Path(__file__).resolve().parent / REALM_EXPORTER_RELATIVE_PATH
+    if not source_tree_exporter.exists():
+        raise FileNotFoundError(
+            "RealmExporter was not found. Reinstall the package or rebuild the Swift helper."
+        )
+
+    yield ensure_executable(source_tree_exporter)
 
 
 def run_apple_script(script_string):
@@ -42,9 +78,10 @@ def main():
 
     try:
         print("\nRunning Swift helper to safely copy the DB and retrieve metadata...")
-        result = subprocess.run(
-            [REALM_EXPORTER_PATH], capture_output=True, text=True, check=True
-        )
+        with realm_exporter_path() as exporter_path:
+            result = subprocess.run(
+                [str(exporter_path)], capture_output=True, text=True, check=True
+            )
         metadata_list = json.loads(result.stdout)
 
         if not metadata_list:
