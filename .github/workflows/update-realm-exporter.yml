@@ -41,7 +41,7 @@ jobs:
                     ./swift_helper/src/.build/arm64-apple-macosx/release/RealmExporter \
                     -output ./swift_helper/bin/RealmExporter
 
-                  lipo -verify_arch x86_64 arm64 ./swift_helper/bin/RealmExporter
+                  lipo ./swift_helper/bin/RealmExporter -verify_arch x86_64 arm64
                   lipo -info ./swift_helper/bin/RealmExporter
 
             - name: Commit updated binary
