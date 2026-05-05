@@ -30,6 +30,17 @@ jobs:
               with:
                   xcode-version: '16.2'
 
+            - name: Cache SwiftPM build artifacts
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      swift_helper/src/.build
+                      ~/Library/Caches/org.swift.swiftpm
+                  key: ${{ runner.os }}-xcode-16.2-swiftpm-${{ hashFiles('swift_helper/src/Package.swift', 'swift_helper/src/Package.resolved') }}-${{ hashFiles('swift_helper/src/Sources/**/*.swift') }}
+                  restore-keys: |
+                      ${{ runner.os }}-xcode-16.2-swiftpm-${{ hashFiles('swift_helper/src/Package.swift', 'swift_helper/src/Package.resolved') }}-
+                      ${{ runner.os }}-xcode-16.2-swiftpm-
+
             - name: Build universal RealmExporter
               run: |
                   swift build -c release --arch x86_64 --package-path ./swift_helper/src
