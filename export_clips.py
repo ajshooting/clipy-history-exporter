@@ -384,10 +384,13 @@ def write_json_entries(entries, total_items):
             json.dump(clip_entry, f, indent=2, ensure_ascii=False)
             written_items += 1
 
-            if written_items % 1000 == 0 or written_items == total_items:
+            if written_items % 1000 == 0:
                 print(f"Progress: {written_items}/{total_items} items completed")
 
         f.write("\n]\n")
+
+    if written_items == 0 or written_items % 1000 != 0:
+        print(f"Progress: {written_items}/{total_items} items completed")
 
     return written_items
 
@@ -404,9 +407,9 @@ def load_legacy_realm_metadata():
 def main():
     copied_database_path = None
 
-    manage_clipy_app("quit")
-
     try:
+        manage_clipy_app("quit")
+
         if has_current_sqlite_schema(CLIPY_SQLITE_PATH):
             print("\nDetected current Clipy SQLite database schema.")
             print("Copying SQLite DB and reading history assets...")
