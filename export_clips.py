@@ -95,12 +95,16 @@ def manage_clipy_app(action):
         run_apple_script(launch_script)
 
 
+def readonly_sqlite_uri(database_path):
+    return f"{database_path.as_uri()}?mode=ro"
+
+
 def has_current_sqlite_schema(database_path):
     if not database_path.exists():
         return False
 
     try:
-        with sqlite3.connect(str(database_path)) as connection:
+        with sqlite3.connect(readonly_sqlite_uri(database_path), uri=True) as connection:
             rows = connection.execute(
                 """
                 SELECT name
@@ -121,7 +125,7 @@ def copy_sqlite_database(source_path):
 
     copied_path = Path(temp_path)
     try:
-        with sqlite3.connect(str(source_path)) as source_connection:
+        with sqlite3.connect(readonly_sqlite_uri(source_path), uri=True) as source_connection:
             with sqlite3.connect(str(copied_path)) as copied_connection:
                 source_connection.backup(copied_connection)
     except Exception:
@@ -148,9 +152,17 @@ def parse_pasteboard_types(raw_value):
 
 
 def decode_text_data(data):
+    if data is None:
+        return None
+    if isinstance(data, str):
+        return data
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        return None
+
+    raw_data = bytes(data)
     for encoding in ("utf-8", "utf-16", "utf-16-le", "utf-16-be"):
         try:
-            text = data.decode(encoding).strip("\x00")
+            text = raw_data.decode(encoding).strip("\x00")
         except UnicodeDecodeError:
             continue
         if text:
@@ -159,6 +171,9 @@ def decode_text_data(data):
 
 
 def is_text_pasteboard_type(pasteboard_type):
+    if not isinstance(pasteboard_type, str):
+        return False
+
     return (
         pasteboard_type in TEXT_PASTEBOARD_TYPES
         or "plain-text" in pasteboard_type
@@ -167,6 +182,9 @@ def is_text_pasteboard_type(pasteboard_type):
 
 
 def is_image_pasteboard_type(pasteboard_type):
+    if not isinstance(pasteboard_type, str):
+        return False
+
     return (
         pasteboard_type in IMAGE_PASTEBOARD_TYPES
         or pasteboard_type.startswith("public.image")
@@ -182,8 +200,12 @@ def extract_sqlite_content(assets):
         if text_content is None and is_text_pasteboard_type(pasteboard_type):
             text_content = decode_text_data(data)
 
-        if image_data is None and is_image_pasteboard_type(pasteboard_type):
-            image_data = data
+        if (
+            image_data is None
+            and is_image_pasteboard_type(pasteboard_type)
+            and isinstance(data, (bytes, bytearray, memoryview))
+        ):
+            image_data = bytes(data)
             image_type = pasteboard_type
 
         if text_content is not None and image_data is not None:
@@ -201,10 +223,36 @@ def count_sqlite_histories(database_path):
         return connection.execute("SELECT COUNT(*) FROM pasteboardHistories").fetchone()[0]
 
 
+def build_sqlite_clip_entry(history, assets, database_path):
+    pasteboard_types = parse_pasteboard_types(history["pasteboardTypes"])
+    if not pasteboard_types:
+        pasteboard_types = [pasteboard_type for pasteboard_type, _ in assets]
+
+    text_content, image_data_base64, image_type = extract_sqlite_content(assets)
+    primary_type = pasteboard_types[0] if pasteboard_types else ""
+
+    return {
+        "dataHash": history["id"],
+        "dataPath": None,
+        "title": history["title"],
+        "primaryType": primary_type,
+        "updateTime": history["updateAt"],
+        "thumbnailPath": None,
+        "isColorCode": history["thumbnailKind"] == "colorCode",
+        "copiedRealmPath": None,
+        "copiedSQLitePath": str(database_path),
+        "pasteboardTypes": pasteboard_types,
+        "deviceID": history["deviceID"],
+        "textContent": text_content,
+        "imageData_base64": image_data_base64,
+        "image_uti": image_type,
+    }
+
+
 def iter_sqlite_clip_entries(database_path):
     with sqlite3.connect(str(database_path)) as connection:
         connection.row_factory = sqlite3.Row
-        histories = connection.execute(
+        rows = connection.execute(
             """
             SELECT
               h.id,
@@ -212,48 +260,40 @@ def iter_sqlite_clip_entries(database_path):
               h.pasteboardTypes,
               h.deviceID,
               h.updateAt,
-              t.kind AS thumbnailKind
+              t.kind AS thumbnailKind,
+              a.pasteboardType AS assetPasteboardType,
+              a.data AS assetData
             FROM pasteboardHistories h
             LEFT JOIN pasteboardHistoryThumbnailAssets t
               ON t.pasteboardHistoryID = h.id
-            ORDER BY h.updateAt DESC
+            LEFT JOIN pasteboardHistoryAssets a
+              ON a.pasteboardHistoryID = h.id
+            ORDER BY h.updateAt DESC, a."index" ASC
             """
         )
 
-        for history in histories:
-            asset_rows = connection.execute(
-                """
-                SELECT pasteboardType, data
-                FROM pasteboardHistoryAssets
-                WHERE pasteboardHistoryID = ?
-                ORDER BY "index" ASC
-                """,
-                (history["id"],),
-            ).fetchall()
-            assets = [(row["pasteboardType"], row["data"]) for row in asset_rows]
-            pasteboard_types = parse_pasteboard_types(history["pasteboardTypes"])
-            if not pasteboard_types:
-                pasteboard_types = [pasteboard_type for pasteboard_type, _ in assets]
+        current_history = None
+        current_assets = []
 
-            text_content, image_data_base64, image_type = extract_sqlite_content(assets)
-            primary_type = pasteboard_types[0] if pasteboard_types else ""
+        for row in rows:
+            if current_history is not None and row["id"] != current_history["id"]:
+                yield build_sqlite_clip_entry(
+                    current_history,
+                    current_assets,
+                    database_path,
+                )
+                current_assets = []
 
-            yield {
-                "dataHash": history["id"],
-                "dataPath": None,
-                "title": history["title"],
-                "primaryType": primary_type,
-                "updateTime": history["updateAt"],
-                "thumbnailPath": None,
-                "isColorCode": history["thumbnailKind"] == "colorCode",
-                "copiedRealmPath": None,
-                "copiedSQLitePath": str(database_path),
-                "pasteboardTypes": pasteboard_types,
-                "deviceID": history["deviceID"],
-                "textContent": text_content,
-                "imageData_base64": image_data_base64,
-                "image_uti": image_type,
-            }
+            current_history = row
+            if row["assetPasteboardType"] is not None:
+                current_assets.append((row["assetPasteboardType"], row["assetData"]))
+
+        if current_history is not None:
+            yield build_sqlite_clip_entry(
+                current_history,
+                current_assets,
+                database_path,
+            )
 
 
 def iter_legacy_realm_clip_entries(metadata_list):
