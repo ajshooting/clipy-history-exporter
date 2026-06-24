@@ -304,7 +304,7 @@ def iter_sqlite_clip_entries(database_path):
                 )
                 current_assets = []
 
-            current_history = row
+            current_history = dict(row)
             if row["assetPasteboardType"] is not None:
                 current_assets.append((row["assetPasteboardType"], row["assetData"]))
 
