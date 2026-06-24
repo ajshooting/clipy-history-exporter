@@ -112,7 +112,7 @@ def has_current_sqlite_schema(database_path):
                 WHERE type IN ('table', 'virtual table')
                 """
             ).fetchall()
-    except sqlite3.DatabaseError:
+    except (sqlite3.Error, OSError):
         return False
 
     table_names = {row[0] for row in rows}
@@ -151,7 +151,7 @@ def parse_pasteboard_types(raw_value):
     return []
 
 
-def decode_text_data(data):
+def decode_text_data(data, pasteboard_type=None):
     if data is None:
         return None
     if isinstance(data, str):
@@ -160,13 +160,26 @@ def decode_text_data(data):
         return None
 
     raw_data = bytes(data)
-    for encoding in ("utf-8", "utf-16", "utf-16-le", "utf-16-be"):
+    encodings = ["utf-8", "utf-16", "utf-16-le", "utf-16-be"]
+
+    if isinstance(pasteboard_type, str):
+        normalized_type = pasteboard_type.lower().replace("-", "")
+        if "utf16" in normalized_type:
+            encodings = ["utf-16", "utf-16-le", "utf-16-be", "utf-8"]
+        elif "utf8" in normalized_type:
+            encodings = ["utf-8", "utf-16", "utf-16-le", "utf-16-be"]
+
+    for encoding in encodings:
         try:
             text = raw_data.decode(encoding).strip("\x00")
         except UnicodeDecodeError:
             continue
+
+        if encoding == "utf-8" and "\x00" in text:
+            continue
         if text:
             return text
+
     return None
 
 
@@ -198,7 +211,7 @@ def extract_sqlite_content(assets):
 
     for pasteboard_type, data in assets:
         if text_content is None and is_text_pasteboard_type(pasteboard_type):
-            text_content = decode_text_data(data)
+            text_content = decode_text_data(data, pasteboard_type)
 
         if (
             image_data is None
@@ -268,7 +281,7 @@ def iter_sqlite_clip_entries(database_path):
               ON t.pasteboardHistoryID = h.id
             LEFT JOIN pasteboardHistoryAssets a
               ON a.pasteboardHistoryID = h.id
-            ORDER BY h.updateAt DESC, a."index" ASC
+            ORDER BY h.updateAt DESC, h.id DESC, a."index" ASC
             """
         )
 
