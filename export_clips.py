@@ -21,6 +21,7 @@ CLIPY_SQLITE_PATH = CLIPY_DATA_DIR / "sqlite.db"
 REQUIRED_SQLITE_TABLES = {
     "pasteboardHistories",
     "pasteboardHistoryAssets",
+    "pasteboardHistoryThumbnailAssets",
 }
 TEXT_PASTEBOARD_TYPES = {
     "public.utf8-plain-text",
@@ -79,7 +80,7 @@ def run_apple_script(script_string):
             ["osascript", "-e", script_string], check=True, capture_output=True
         )
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, OSError):
         return False
 
 
@@ -96,7 +97,8 @@ def manage_clipy_app(action):
 
 
 def readonly_sqlite_uri(database_path):
-    return f"{database_path.as_uri()}?mode=ro"
+    path = Path(database_path).resolve()
+    return f"{path.as_uri()}?mode=ro"
 
 
 def has_current_sqlite_schema(database_path):
