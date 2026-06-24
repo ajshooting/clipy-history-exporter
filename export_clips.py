@@ -6,7 +6,7 @@ import os
 import sqlite3
 import stat
 import tempfile
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from importlib.resources import as_file, files
 from nska_deserialize import deserialize_plist
 from pathlib import Path
@@ -104,7 +104,9 @@ def has_current_sqlite_schema(database_path):
         return False
 
     try:
-        with sqlite3.connect(readonly_sqlite_uri(database_path), uri=True) as connection:
+        with closing(
+            sqlite3.connect(readonly_sqlite_uri(database_path), uri=True)
+        ) as connection:
             rows = connection.execute(
                 """
                 SELECT name
@@ -125,8 +127,10 @@ def copy_sqlite_database(source_path):
 
     copied_path = Path(temp_path)
     try:
-        with sqlite3.connect(readonly_sqlite_uri(source_path), uri=True) as source_connection:
-            with sqlite3.connect(str(copied_path)) as copied_connection:
+        with closing(
+            sqlite3.connect(readonly_sqlite_uri(source_path), uri=True)
+        ) as source_connection:
+            with closing(sqlite3.connect(str(copied_path))) as copied_connection:
                 source_connection.backup(copied_connection)
     except Exception:
         if copied_path.exists():
@@ -232,7 +236,7 @@ def extract_sqlite_content(assets):
 
 
 def count_sqlite_histories(database_path):
-    with sqlite3.connect(str(database_path)) as connection:
+    with closing(sqlite3.connect(str(database_path))) as connection:
         return connection.execute("SELECT COUNT(*) FROM pasteboardHistories").fetchone()[0]
 
 
@@ -263,7 +267,8 @@ def build_sqlite_clip_entry(history, assets, database_path):
 
 
 def iter_sqlite_clip_entries(database_path):
-    with sqlite3.connect(str(database_path)) as connection:
+    connection = sqlite3.connect(str(database_path))
+    try:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
@@ -307,6 +312,8 @@ def iter_sqlite_clip_entries(database_path):
                 current_assets,
                 database_path,
             )
+    finally:
+        connection.close()
 
 
 def iter_legacy_realm_clip_entries(metadata_list):
